@@ -20,11 +20,11 @@ def get_springs_length(nodes_pos, muscles_nodes):
     return np.sqrt(np.sum(vectors ** 2, axis = 1)) + 0.01, vectors
 
 @numba.njit
-@cc.export('get_springs_forces', 'Tuple((f8[:, :], f8[:]))(f8[:, :], f8[:], i4[:, :], f8[:], f8[:])')
-def get_springs_forces(nodes_pos, start_muscles_length, muscles_nodes, muscles_strength, last_muscles_length):
+@cc.export('get_springs_forces', 'Tuple((f8[:, :], f8[:]))(f8[:, :], f8[:], i4[:, :], f8[:], f8[:], f8)')
+def get_springs_forces(nodes_pos, start_muscles_length, muscles_nodes, muscles_strength, last_muscles_length, damping):
     muscles_length, unit_vectors = get_springs_length(nodes_pos, muscles_nodes)
     unit_vectors = unit_vectors = unit_vectors / muscles_length.reshape(len(muscles_strength), 1)
-    muscles_forces = unit_vectors * ((((start_muscles_length - muscles_length) * muscles_strength * 4) + (last_muscles_length - muscles_length) * 10).reshape(len(muscles_strength), 1))
+    muscles_forces = unit_vectors * ((((start_muscles_length - muscles_length) * muscles_strength * 4) + (last_muscles_length - muscles_length) * damping).reshape(len(muscles_strength), 1))
     nodes_forces = np.zeros((len(nodes_pos), 2))
     for i in range(len(muscles_strength)):
         nodes_forces[muscles_nodes[i][0]] += muscles_forces[i]
@@ -32,10 +32,10 @@ def get_springs_forces(nodes_pos, start_muscles_length, muscles_nodes, muscles_s
     return nodes_forces, muscles_length
 
 @numba.njit
-@cc.export('move', 'Tuple((f8[:, :], f8[:, :], f8[:]))(f8[:, :], f8[:, :], f8[:], i4[:, :], f8[:], f8[:], f8, i4)')
-def move(nodes_pos, nodes_velocity, start_muscles_length, muscles_nodes, muscles_strength, last_muscles_length, G, fps):
+@cc.export('move', 'Tuple((f8[:, :], f8[:, :], f8[:]))(f8[:, :], f8[:, :], f8[:], i4[:, :], f8[:], f8[:], f8, f8, i4)')
+def move(nodes_pos, nodes_velocity, start_muscles_length, muscles_nodes, muscles_strength, last_muscles_length, G, damping, fps):
     for _ in range(fps):
-        nodes_forces, muscles_length = get_springs_forces(nodes_pos, start_muscles_length, muscles_nodes, muscles_strength, last_muscles_length)
+        nodes_forces, muscles_length = get_springs_forces(nodes_pos, start_muscles_length, muscles_nodes, muscles_strength, last_muscles_length, damping)
         cen = get_center(nodes_pos)
         for i in range(len(nodes_pos)):
             nodes_forces[i][1] += G * (nodes_pos[i][1] - cen[1])

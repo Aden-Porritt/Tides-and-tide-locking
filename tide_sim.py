@@ -20,7 +20,7 @@ class Body:
         self.last_muscles_length = np.array([])
 
         self.node_size = 20
-        self.r = 200
+        self.r = 300
         self.data = []
         self.x = []
         self.last_x = 0
@@ -33,7 +33,7 @@ class Body:
         self.springs_nodes = np.array(self.springs_nodes, 'i4')
         self.springs_s = np.array(self.springs_s, 'f8')
 
-        fps = 2**2
+        fps = 2**10
         clock = pygame.time.Clock()
         self.start_springs_length, vector = eng.get_springs_length(self.nodes_pos, self.springs_nodes)
         self.nodes_pos = self.nodes_pos.copy()
@@ -50,14 +50,14 @@ class Body:
                     return False
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_LEFT:
-                        fps = math.ceil(fps / 2)
+                        fps = math.ceil(fps / 1.1)
                         print('kl')
                     if event.key == pygame.K_RIGHT:
-                        fps *= 2
+                        fps = math.ceil(fps * 1.1)
                         print('kr')
                     if event.key == pygame.K_0:
                         return True
-            self.nodes_pos, self.nodes_velocity, self.last_springs_length = eng.move(self.nodes_pos, self.nodes_velocity, self.start_springs_length, self.springs_nodes, self.springs_s, self.last_springs_length, 0.01, fps)
+            self.nodes_pos, self.nodes_velocity, self.last_springs_length = eng.move(self.nodes_pos, self.nodes_velocity, self.start_springs_length, self.springs_nodes, self.springs_s, self.last_springs_length, 0.01, 0.5, fps)
             self.draw_animal()
             # self.data.append(self.nodes_pos[1] - eng.get_center(self.nodes_pos))
             avg_node_v = np.sum(self.nodes_velocity, axis=0) / len(self.nodes_velocity)
@@ -66,18 +66,21 @@ class Body:
             cen = eng.get_center(self.nodes_pos)
             self.nodes_pos -= cen
             for index, node_v in enumerate(self.nodes_velocity):
-                q += -(np.dot(np.array([node_v[1], -node_v[0]]), (self.nodes_pos[index])) * np.sqrt(np.sum((self.nodes_pos[index]) ** 2)))
+                q += -(np.dot(np.array([node_v[1], -node_v[0]]), (self.nodes_pos[index])) / np.sqrt(np.sum((self.nodes_pos[index]) ** 2)))
             self.data.append(q / len(self.nodes_velocity))
             self.x.append(self.last_x + fps)
             self.last_x += fps
             if len(self.data) > 1:
                 self.angle_data.append((self.data[-2] - self.data[-1]) / fps)
             print(fps, self.data[-1], self.angle_data[-1])
+            if self.data[-1] < 1:
+                print(self.x[-1])
+                break
         return True
 
     def draw_animal(self):
         self.center = eng.get_center(self.nodes_pos)
-        WIN.fill((1 , 1, 1))
+        WIN.fill((255, 255, 255))
         self.draw_muscles()
         self.draw_nodes()
         pygame.draw.circle(WIN, (0, 0, 255), [WIDTH / 2, HEIGHT / 2], self.r + 2, 5)
@@ -90,7 +93,7 @@ class Body:
             draw_rectangle(pos1, pos2, 10, self.springs_s[i], self.center, self.node_size)
 
     def draw_nodes(self):
-        colour = [(255, 255, 255) for _ in self.nodes_pos]
+        colour = [(1, 1, 1) for _ in self.nodes_pos]
         for i, node in enumerate(self.nodes_pos):
             pos = [WIDTH / 2 + node[0] - self.center[0], HEIGHT / 2 + self.center[1] - node[1]]
             pygame.draw.circle(WIN, colour[i], pos, self.node_size, 0)
@@ -121,31 +124,51 @@ def draw_rectangle(pos1, pos2, width, colour, cen, size):
 def main():
     earth = Body()
     earth.nodes_pos = [[0.0, 0.0]]
-    n = 16
-    r = 200
-    for i in range(n):
-        x = r * np.cos(2 * i * np.pi / n)
-        y = r * np.sin(2 * i * np.pi / n)
+    n_helper = 3
+    n1 = 20
+    n2 = n1 * n_helper
+    r1 = 150
+    r2 = 300
+    for i in range(n1):
+        x = r1 * np.cos(2 * i * np.pi / n1)
+        y = r1 * np.sin(2 * i * np.pi / n1)
         earth.nodes_pos.append([x, y])
         earth.springs_nodes.append([0, i + 1])
         for ii in range(1):
-            earth.springs_nodes.append([(i - ii - 1)%n + 1, i + 1])
-            earth.springs_nodes.append([(i + ii + 1)%n + 1, i + 1])
+            earth.springs_nodes.append([(i - ii - 1)%n1 + 1, i + 1])
+            earth.springs_nodes.append([(i + ii + 1)%n1 + 1, i + 1])
+    for i in range(n2):
+        x = r2 * np.cos(2 * i * np.pi / n2)
+        y = r2 * np.sin(2 * i * np.pi / n2)
+        earth.nodes_pos.append([x, y])
+        earth.springs_nodes.append([((i + n_helper//2)//n_helper)%n1 + 1, i + 1 + n1])
+        for ii in range(1):
+            earth.springs_nodes.append([((i + n_helper//2)//n_helper + ii + 1)%n1 + 1, i + 1 + n1])
+            earth.springs_nodes.append([((i + n_helper//2)//n_helper - ii - 1)%n1 + 1, i + 1 + n1])
+
+        for ii in range(1):
+            earth.springs_nodes.append([(i - ii - 1)%n2 + 1 + n1, i + 1 + n1])
+            earth.springs_nodes.append([(i + ii + 1)%n2 + 1 + n1, i + 1 + n1])
+        
     earth.springs_s = [0.1 for _ in earth.springs_nodes]
     print(earth.nodes_pos)
     earth.show_sim()
     plt.plot(earth.x, earth.data)
+    plt.xlabel('time')
+    plt.ylabel('rotational speed')
     plt.show()
     plt.plot(earth.x, earth.angle_data)
     plt.show()
     plt.plot(earth.data, earth.angle_data)
+    plt.xlabel('rotational speed')
+    plt.ylabel('torque')
     plt.show()
 
 if __name__ == "__main__":
     import pygame
     import matplotlib.pyplot as plt
 
-    WIDTH, HEIGHT = 1400, 700
+    WIDTH, HEIGHT = 1400, 800
     WIN = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("game")
 
